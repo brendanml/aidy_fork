@@ -2,7 +2,7 @@ import tensorflow as tf
 
 
 class CAE(tf.keras.Model):
-    def __init__(self, num_alleles, num_snps):
+    def __init__(self, num_alleles, num_snps, num_reads = None):
         super(CAE, self).__init__()
         self.num_alleles = num_alleles
         self.num_snps = num_snps
@@ -16,10 +16,17 @@ class CAE(tf.keras.Model):
         
         # Decoder
         self.decode_dense1 = tf.keras.layers.Dense(128, activation='relu')
-        self.decode_dense2 = tf.keras.layers.Dense(num_snps * 64, activation='relu')
-        self.decode_reshape = tf.keras.layers.Reshape((1, num_snps, 64))
-        self.decode_conv1 = tf.keras.layers.Conv2DTranspose(32, (3, 3), activation='relu', padding='same')
-        self.decode_conv2 = tf.keras.layers.Conv2DTranspose(1, (3, 3), activation='sigmoid', padding='same')
+
+        if num_reads:
+            self.decode_dense2 = tf.keras.layers.Dense(num_reads * num_snps * 4, activation='relu')
+            self.decode_reshape = tf.keras.layers.Reshape((num_reads, num_snps, 4))
+            self.decode_conv1 = tf.keras.layers.Conv2D(32, (3, 3), activation='relu', padding='same')
+            self.decode_conv2 = tf.keras.layers.Conv2D(1, (3, 3), activation='sigmoid', padding='same')
+        else:
+            self.decode_dense2 = tf.keras.layers.Dense(num_snps * 64, activation='relu')
+            self.decode_reshape = tf.keras.layers.Reshape((1, num_snps, 64))
+            self.decode_conv1 = tf.keras.layers.Conv2DTranspose(32, (3, 3), activation='relu', padding='same')
+            self.decode_conv2 = tf.keras.layers.Conv2DTranspose(1, (3, 3), activation='sigmoid', padding='same')
         
         self.allele_array = None
         

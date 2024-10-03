@@ -79,6 +79,22 @@ class ETL:
         self.allele_db = np.array([allele_vectors[k] for k in self.allele_keys])
         self.squeezed_allele_db = np.array([self.squeeze(allele_vectors[k]) for k in self.allele_keys])
     
+    def count_reads(self, alleles):
+        reads = {}
+        for allele in alleles:
+            with pysam.AlignmentFile(f"temp/sim/{self.gene.name}_{allele}.bwa.bam") as sam:
+                for record in sam.fetch(region=self.gene.get_wide_region().samtools(prefix="chr")):
+                    if not record.cigarstring or "H" in record.cigarstring:  # only valid alignments
+                        continue
+                    if record.is_supplementary:  # avoid supplementary alignments
+                        continue
+                    if not record.query_sequence:
+                        continue
+                    fragment = record.query_name
+                    reads.setdefault(fragment, {})
+        
+        return len(reads)
+    
     def sample(self, selected_alleles, squeezed):
         reads = []
         for allele in selected_alleles:

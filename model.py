@@ -6,14 +6,20 @@ from models.loss import get_loss
 
 
 class Model:
-    def __init__(self, model_name, allele_db, coverage):
-        if model_name == 'cae':
-            self.coverage = coverage
-            self.allele_db = allele_db
-            self.model = CAE(*allele_db.shape)
+    def __init__(self, model_name, allele_db, coverage, num_reads):
+        self.coverage = coverage
+        self.allele_db = allele_db
+        
+        if model_name.startswith('cae'):
+            if model_name == 'cae_v1':
+                self.model = CAE(*allele_db.shape)
+            elif model_name == 'cae_v2':
+                self.model = CAE(*allele_db.shape, num_reads)
+            else:
+                raise ValueError("Invalid model name", model_name)
             self.model.set_allele_array(allele_db)
         else:
-            raise ValueError("Invalid model name", model_name)
+            raise ValueError("Invalid model name", model_name) 
 
     def loss(self, loss_name, *args):
         return get_loss(loss_name, *args)

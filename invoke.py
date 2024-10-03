@@ -23,8 +23,8 @@ parser.add_argument('-q', '--squeezed',
                     action='store_true',
                     default=True)
 parser.add_argument('-m', '--model',
-                    choices=['cae'],
-                    default='cae')
+                    choices=['cae_v1', 'cae_v2'],
+                    default='cae_v1')
 parser.add_argument('-e', '--epochs', type=int, default=500)
 parser.add_argument('-l', '--loss', default='aidy_v2')
 
@@ -35,10 +35,10 @@ if args.seed:
     tf.random.set_seed(args.seed)
 
 etl = ETL(args.gene, args.coverage)
-model = Model(args.model, etl.squeezed_allele_db, args.coverage)
-
 runs = args.runs
 population_size = args.number_of_alleles
+model = Model(args.model, etl.squeezed_allele_db, args.coverage,
+              etl.count_reads([random.choice(etl.allele_keys) for _ in range(population_size)]))
 
 errors = []
 for _ in range(runs):
