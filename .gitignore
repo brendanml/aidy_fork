@@ -2,3 +2,4 @@
 temp*
 art_bin*
 *__pycache__*
+models/__pycache__*
