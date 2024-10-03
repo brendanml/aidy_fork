@@ -1,35 +1,45 @@
-import random
+#%%
+import random, os
 
 import numpy as np
 import tensorflow as tf
 import argparse
+import pip._vendor.tomli as tomllib
 
 from etl import ETL
 from model import Model
+from util import dotdict
 
+is_jupyter = "JPY_PARENT_PID" in os.environ
 
-parser = argparse.ArgumentParser(
-    prog='Aidy runtime')
+#%%
+if is_jupyter:
+    with open("config.toml", "rb") as f:
+        args = dotdict(tomllib.load(f))
+else:
+    parser = argparse.ArgumentParser(
+        prog='Aidy runtime')
 
-parser.add_argument('gene')
-parser.add_argument('-s', '--seed', type=int)
-parser.add_argument('-v', '--verbose',
-                    action='store_true',
-                    default=True)
-parser.add_argument('-r', '--runs', type=int, default=3)
-parser.add_argument('-n', '--number-of-alleles', type=int, default=3)
-parser.add_argument('-c', '--coverage', type=int, default=10)
-parser.add_argument('-q', '--squeezed',
-                    action='store_true',
-                    default=True)
-parser.add_argument('-m', '--model',
-                    choices=['cae_v1', 'cae_v2'],
-                    default='cae_v1')
-parser.add_argument('-e', '--epochs', type=int, default=500)
-parser.add_argument('-l', '--loss', default='aidy_v2')
+    parser.add_argument('gene')
+    parser.add_argument('-s', '--seed', type=int)
+    parser.add_argument('-v', '--verbose',
+                        action='store_true',
+                        default=True)
+    parser.add_argument('-r', '--runs', type=int, default=3)
+    parser.add_argument('-n', '--number-of-alleles', type=int, default=3)
+    parser.add_argument('-c', '--coverage', type=int, default=10)
+    parser.add_argument('-q', '--squeezed',
+                        action='store_true',
+                        default=True)
+    parser.add_argument('-m', '--model',
+                        choices=['cae_v1', 'cae_v2'],
+                        default='cae_v1')
+    parser.add_argument('-e', '--epochs', type=int, default=500)
+    parser.add_argument('-l', '--loss', default='aidy_v2')
 
-args = parser.parse_args()
+    args = parser.parse_args()
 
+#%%
 if args.seed:
     np.random.seed(args.seed)
     tf.random.set_seed(args.seed)
@@ -40,6 +50,7 @@ population_size = args.number_of_alleles
 model = Model(args.model, etl.squeezed_allele_db, args.coverage,
               etl.count_reads([random.choice(etl.allele_keys) for _ in range(population_size)]))
 
+#%%
 errors = []
 for _ in range(runs):
     selected_alleles = [random.choice(etl.allele_keys) for _ in range(population_size)]
@@ -51,3 +62,5 @@ for _ in range(runs):
 
 if args.verbose:
     print("Errors:", errors)
+
+# %%

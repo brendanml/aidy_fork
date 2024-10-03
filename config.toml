@@ -1,0 +1,10 @@
+gene = 'cyp2c19'
+seed = 42
+verbose = true
+runs = 3
+number_of_alleles = 3
+coverage = 10
+squeezed = true
+model = 'cae_v2'
+epochs = 500
+loss = 'aidy_v2'
