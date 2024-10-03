@@ -6,7 +6,7 @@ import aldy.common
 
 
 class ETL:
-    def __init__(self, gene_name, coverage):
+    def __init__(self, gene_name, coverage, no_cache):
         self.coverage = coverage
         gene_path = aldy.common.script_path(f"aldy.resources.genes/{gene_name}.yml")
         self.gene = aldy.gene.Gene(gene_path, genome="hg38")
@@ -14,7 +14,7 @@ class ETL:
         if not os.path.exists("temp/chr10.fa.bwt"):
             os.system("wget https://hgdownload.soe.ucsc.edu/goldenPath/hg38/chromosomes/chr10.fa.gz")
             os.system("gunzip chr10.fa.gz && mv chr10.fa temp/")
-            os.system("~/libs/bwa/bwa index temp/chr10.fa")
+            os.system(f"{os.getenv('BWA_PATH', 'bwa')} index temp/chr10.fa")
         
         # Allele dictionary: name -> [list_of_mutations]
         alleles = {}
@@ -54,7 +54,7 @@ class ETL:
         # Do simulations
         # Simulate allele sequences with ART and align them to the reference
         for a_n, a_muts in alleles.items():
-            if os.path.exists(f"temp/sim/{self.gene.name}_{a_n}_1.fq") and os.path.exists(f"temp/sim/{self.gene.name}_{a_n}_2.fq"):
+            if os.path.exists(f"temp/sim/{self.gene.name}_{a_n}_1.fq") and os.path.exists(f"temp/sim/{self.gene.name}_{a_n}_2.fq") and not no_cache:
                 continue
             
             # Write FA file
@@ -72,7 +72,7 @@ class ETL:
             os.system(
                 "~/libs/bwa/bwa mem -t 4 temp/chr10.fa "
                 f"temp/sim/{self.gene.name}_{a_n}_1.fq temp/sim/{self.gene.name}_{a_n}_2.fq | "
-                f"/cvmfs/soft.computecanada.ca/easybuild/software/2020/avx512/Core/samtools/1.17/bin/samtools sort --write-index -o temp/sim/{self.gene.name}_{a_n}.bwa.bam##idx##temp/sim/{self.gene.name}_{a_n}.bwa.bai")
+                f"{os.getenv('SAMTOOLS_PATH', 'samtools')} sort --write-index -o temp/sim/{self.gene.name}_{a_n}.bwa.bam##idx##temp/sim/{self.gene.name}_{a_n}.bwa.bai")
 
         # This is database matrix (rows: alleles, columns: variants)
         self.allele_keys = list(allele_vectors.keys())

@@ -65,12 +65,13 @@ class Model:
                     reverse=True)[:len(expected_alleles)]).T[1].astype(int)]
 
         inf_all_sum = np.sum(infered_alleles, axis=0)
-        print("Inferred Allele indices (sum):", inf_all_sum)
         exp_all_sum = np.sum(expected_alleles, axis=0)
-        print("Expected Alleles indices (sum):", exp_all_sum)
-
         error = (inf_all_sum != exp_all_sum).astype(int).sum()
-        print("Error:", error)
+        
+        if verbose:
+            print("Inferred Allele indices (sum):", inf_all_sum)
+            print("Expected Alleles indices (sum):", exp_all_sum)
+            print("Error:", error)
 
         # Calculate accuracy metrics
         return error

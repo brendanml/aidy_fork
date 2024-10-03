@@ -22,15 +22,15 @@ args = dotdict({
     "squeezed": True,
     "model": 'cae_v1',
     "epochs": 500,
-    "loss": 'aidy_v1'
+    "loss": 'aidy_v1',
+    "no_cache": False
 })
 
 if not is_jupyter:
     parser = argparse.ArgumentParser(
         prog='Aidy runtime')
 
-    parser.add_argument('gene',
-                        default=args.gene)
+    parser.add_argument('gene')
     parser.add_argument('-s', '--seed',
                         type=int, default=args.seed)
     parser.add_argument('-v', '--verbose',
@@ -52,6 +52,9 @@ if not is_jupyter:
                         type=int, default=args.epochs)
     parser.add_argument('-l', '--loss',
                         default=args.loss)
+    parser.add_argument('--no-cache',
+                        action='store_true',
+                        default=args.no_cache)
 
     args = parser.parse_args()
 
@@ -60,7 +63,7 @@ if args.seed:
     np.random.seed(args.seed)
     tf.random.set_seed(args.seed)
 
-etl = ETL(args.gene, args.coverage)
+etl = ETL(args.gene, args.coverage, args.no_cache)
 runs = args.runs
 population_size = args.number_of_alleles
 model = Model(args.model, etl.squeezed_allele_db, args.coverage,
