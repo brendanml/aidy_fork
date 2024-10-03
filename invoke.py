@@ -4,7 +4,6 @@ import random, os
 import numpy as np
 import tensorflow as tf
 import argparse
-import pip._vendor.tomli as tomllib
 
 from etl import ETL
 from model import Model
@@ -13,29 +12,46 @@ from util import dotdict
 is_jupyter = "JPY_PARENT_PID" in os.environ
 
 #%%
-if is_jupyter:
-    with open("config.toml", "rb") as f:
-        args = dotdict(tomllib.load(f))
-else:
+args = dotdict({
+    "gene": 'cyp2c19',
+    "seed": 42,
+    "verbose": True,
+    "runs": 3,
+    "number_of_alleles": 3,
+    "coverage": 10,
+    "squeezed": True,
+    "model": 'cae_v1',
+    "epochs": 500,
+    "loss": 'aidy_v1'
+})
+
+if not is_jupyter:
     parser = argparse.ArgumentParser(
         prog='Aidy runtime')
 
-    parser.add_argument('gene')
-    parser.add_argument('-s', '--seed', type=int)
+    parser.add_argument('gene',
+                        default=args.gene)
+    parser.add_argument('-s', '--seed',
+                        type=int, default=args.seed)
     parser.add_argument('-v', '--verbose',
                         action='store_true',
-                        default=True)
-    parser.add_argument('-r', '--runs', type=int, default=3)
-    parser.add_argument('-n', '--number-of-alleles', type=int, default=3)
-    parser.add_argument('-c', '--coverage', type=int, default=10)
+                        default=args.verbose)
+    parser.add_argument('-r', '--runs',
+                        type=int, default=args.runs)
+    parser.add_argument('-n', '--number-of-alleles',
+                        type=int, default=args.number_of_alleles)
+    parser.add_argument('-c', '--coverage',
+                        type=int, default=args.coverage)
     parser.add_argument('-q', '--squeezed',
                         action='store_true',
-                        default=True)
+                        default=args.squeezed)
     parser.add_argument('-m', '--model',
                         choices=['cae_v1', 'cae_v2'],
-                        default='cae_v1')
-    parser.add_argument('-e', '--epochs', type=int, default=500)
-    parser.add_argument('-l', '--loss', default='aidy_v2')
+                        default=args.model)
+    parser.add_argument('-e', '--epochs',
+                        type=int, default=args.epochs)
+    parser.add_argument('-l', '--loss',
+                        default=args.loss)
 
     args = parser.parse_args()
 
