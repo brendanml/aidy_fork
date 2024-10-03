@@ -2,12 +2,13 @@ import numpy as np
 import tensorflow as tf
 
 from models.cae import CAE
-from models.loss import aidy_loss_v1
+from models.loss import get_loss
 
 
 class Model:
-    def __init__(self, model_name, allele_db):
+    def __init__(self, model_name, allele_db, coverage):
         if model_name == 'cae':
+            self.coverage = coverage
             self.allele_db = allele_db
             self.model = CAE(*allele_db.shape)
             self.model.set_allele_array(allele_db)
@@ -15,9 +16,7 @@ class Model:
             raise ValueError("Invalid model name", model_name)
 
     def loss(self, loss_name, *args):
-        if loss_name == "aidy_v1":
-            return aidy_loss_v1(*args)
-        raise ValueError("Invalid loss name:", loss_name)
+        return get_loss(loss_name, *args)
     
     def unsupervised_run(self, reads, expected_alleles, epochs=500, loss_name='aidy_v1', verbose=False):
         # Convert reads to model input format (add batch and channel dimensions)
@@ -33,7 +32,9 @@ class Model:
         for epoch in range(epochs):
             with tf.GradientTape() as tape:
                 allele_probs, reconstructed = self.model(input_reads)
-                loss, rec_loss, allele_loss, l1_reg = self.loss(loss_name, self.model, input_reads, allele_probs, reconstructed)
+                loss, rec_loss, allele_loss, l1_reg = self.loss(
+                    loss_name, input_reads, allele_probs,
+                    reconstructed, self.allele_db, self.coverage)
             
             gradients = tape.gradient(loss, self.model.trainable_variables)
             

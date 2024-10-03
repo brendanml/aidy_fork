@@ -18,6 +18,7 @@ parser.add_argument('-v', '--verbose',
                     default=True)
 parser.add_argument('-r', '--runs', type=int, default=3)
 parser.add_argument('-n', '--number-of-alleles', type=int, default=3)
+parser.add_argument('-c', '--coverage', type=int, default=10)
 parser.add_argument('-q', '--squeezed',
                     action='store_true',
                     default=True)
@@ -25,6 +26,7 @@ parser.add_argument('-m', '--model',
                     choices=['cae'],
                     default='cae')
 parser.add_argument('-e', '--epochs', type=int, default=500)
+parser.add_argument('-l', '--loss', default='aidy_v2')
 
 args = parser.parse_args()
 
@@ -32,8 +34,8 @@ if args.seed:
     np.random.seed(args.seed)
     tf.random.set_seed(args.seed)
 
-etl = ETL(args.gene)
-model = Model(args.model, etl.squeezed_allele_db)
+etl = ETL(args.gene, args.coverage)
+model = Model(args.model, etl.squeezed_allele_db, args.coverage)
 
 runs = args.runs
 population_size = args.number_of_alleles
@@ -45,7 +47,7 @@ for _ in range(runs):
 
     expected_alleles = etl.filter_alleles(selected_alleles, squeezed=args.squeezed)
     errors.append(model.predict(
-        reads, expected_alleles, epochs=args.epochs, verbose=args.verbose))
+        reads, expected_alleles, epochs=args.epochs, loss_name=args.loss, verbose=args.verbose))
 
 if args.verbose:
     print("Errors:", errors)

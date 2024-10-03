@@ -6,7 +6,8 @@ import aldy.common
 
 
 class ETL:
-    def __init__(self, gene_name):
+    def __init__(self, gene_name, coverage):
+        self.coverage = coverage
         gene_path = aldy.common.script_path(f"aldy.resources.genes/{gene_name}.yml")
         self.gene = aldy.gene.Gene(gene_path, genome="hg38")
         os.system('mkdir -p temp/sim')
@@ -64,7 +65,7 @@ class ETL:
             # Simulate
             os.system(
                 "art_bin_MountRainier/art_illumina "
-                "-ss HS20 -sam -p -l 100 -f 10 -m 500 -s 10 -ef -sam "
+                f"-ss HS20 -sam -p -l 100 -f {self.coverage} -m 500 -s 10 -ef -sam "
                 f"-o temp/sim/{self.gene.name}_{a_n}_ -i temp/sim/{self.gene.name}_{a_n}.fa"
             )
             # Align
