@@ -57,7 +57,7 @@ if not is_jupyter:
                         default=args.loss)
     parser.add_argument('--no-cache',
                         action='store_true',
-                        default=args.no_cache)
+                        default=False)
     
     
     args = parser.parse_args()
@@ -72,9 +72,12 @@ runs = args.runs
 population_size = args.number_of_alleles
 model = Model(args.model, etl.squeezed_allele_db, args.coverage,
               etl.count_reads([random.choice(etl.allele_keys) for _ in range(population_size)]))
-
+#%%
 def load_test_bank(file_path):
-    allele_to_index = {}
+    allele_names = list(a.name for a in etl.gene.alleles.values())
+    
+    allele_to_index = {name: index for index, name in enumerate(allele_names)}
+    
     data = []
     labels = []
     
@@ -84,16 +87,20 @@ def load_test_bank(file_path):
             simulation = parts[0]
             alleles = parts[1:]
             
-            allele_vector = np.zeros(len(allele_to_index))
+            # Create allele vector
+            allele_vector = np.zeros(len(allele_names))
             for allele in alleles:
-                if allele not in allele_to_index:
-                    allele_to_index[allele] = len(allele_to_index)
-                allele_vector[allele_to_index[allele]] = 1
+                allele = allele.split('_')[1]
+                if allele in allele_to_index:
+                    allele_vector[allele_to_index[allele]] = 1
+                else:
+                    assert False
             
             data.append(allele_vector)
             labels.append(alleles)
     
     return np.array(data), labels, allele_to_index
+
 
 def prepare_data(data):
     return data.astype(np.float32)
