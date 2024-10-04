@@ -33,6 +33,19 @@ for _ in range(1000):
 for _ in range(1000):
     simulations.append(generate_simulation(allele_names, 4))
 
+def verify_no_duplication(simulations):
+    for i, sim in enumerate(simulations):
+        if len(sim) != len(set(sim)):
+            print(f"Error: Duplication found in simulation {i}")
+            return False
+    print("Verification complete: No duplications found in any simulation")
+    return True
+
+# After generating all simulations
+if verify_no_duplication(simulations):
+    write_test_bank("artifacts/test_bank.txt", simulations)
+else:
+    print("Error: Duplications found. Test bank not generated.")
 # Write to test_bank.txt
 write_test_bank("artifacts/test_bank.txt", simulations)
 
