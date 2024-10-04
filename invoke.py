@@ -49,8 +49,8 @@ if not is_jupyter:
                         action='store_true',
                         default=True)
     parser.add_argument('-m', '--model',
-                        choices=['cae_v1', 'cae_v2'],
-                        default=args.model)
+                        choices=['cae_v1', 'cae_v2', 'cae_v3'],
+                        default='cae_v3')
     parser.add_argument('-e', '--epochs',
                         type=int, default=args.epochs)
     parser.add_argument('-l', '--loss',
@@ -72,6 +72,8 @@ runs = args.runs
 population_size = args.number_of_alleles
 model = Model(args.model, etl.squeezed_allele_db, args.coverage,
               etl.count_reads([random.choice(etl.allele_keys) for _ in range(population_size)]))
+
+
 #%%
 def load_learning_data(file_path):
     '''
@@ -116,50 +118,19 @@ def load_learning_data(file_path):
     return data, labels
 
 train_data, train_labels = load_learning_data('artifacts/train.txt')
-validation_data, validation_labels = load_learning_data('artifacts/validation.txt')
+val_data, val_labels = load_learning_data('artifacts/validation.txt')
 test_data, test_labels = load_learning_data('artifacts/test.txt')
 
 
-#%%
-def train_cae(model, train_data, val_data, epochs=100, batch_size=32):
-    early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
-    
-    history = model.fit(
-        train_data, train_data, 
-        epochs=epochs,
-        batch_size=batch_size,
-        shuffle=True,
-        validation_data=(val_data, val_data),
-        callbacks=[early_stopping]
-    )
-    
-    return history
 
+train_cae(model, train_data, val_data)
+#%%
 def evaluate_cae(model, test_data):
     test_loss = model.evaluate(test_data, test_data)
     print(f"Test Loss: {test_loss}")
     return test_loss
 
-def plot_history(history):
-    plt.figure(figsize=(12, 4))
-    
-    plt.subplot(1, 2, 1)
-    plt.plot(history.history['loss'], label='Training Loss')
-    plt.plot(history.history['val_loss'], label='Validation Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.title('Training and Validation Loss')
-    
-    plt.subplot(1, 2, 2)
-    plt.plot(history.history['loss'])
-    plt.xlabel('Epoch')
-    plt.ylabel('Training Loss')
-    plt.title('Training Loss')
-    
-    plt.tight_layout()
-    plt.savefig('training_history.png')
-    plt.close()
+
 
 #%%
 errors = []
