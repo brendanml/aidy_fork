@@ -75,34 +75,44 @@ model = Model(args.model, etl.squeezed_allele_db, args.coverage,
 #%%
 def load_learning_data(file_path):
     '''
-    load train, validation, and test data from testbank file
-    for each data, it is a binary vector where 1 indicates the presences of alelle
+    For each sample in the file, generate the reads using etl.sample(selected_alleles, squeezed=args.squeezed),
+    and create the allele vector for the labels.
     '''
     allele_names = list(a.name for a in etl.gene.alleles.values())
-    
     allele_to_index = {name: index for index, name in enumerate(allele_names)}
-    
+   
     data = []
     labels = []
-    
+   
     with open(file_path, 'r') as file:
         for line in file:
             parts = line.strip().split(',')
             simulation = parts[0]
             alleles = parts[1:]
-            
-            # Create allele vector
-            allele_vector = np.zeros(len(allele_names))
+           
+            selected_alleles = []
             for allele in alleles:
-                allele = allele.split('_')[1]
+                # Assuming allele is of the form 'simulation_allele_name'
+                if '_' in allele:
+                    allele = allele.split('_')[1]
+                allele = allele.strip()
+                selected_alleles.append(allele)
+           
+            # Generate reads using etl.sample
+            reads = etl.sample(selected_alleles, squeezed=args.squeezed)
+           
+            # Create allele vector for labels
+            allele_vector = np.zeros(len(allele_names))
+            for allele in selected_alleles:
                 if allele in allele_to_index:
                     allele_vector[allele_to_index[allele]] = 1
                 else:
-                    assert False
-            
-            data.append(allele_vector)
-            labels.append(alleles)
-    
+                    print(f"Warning: Allele {allele} not found in allele_to_index")
+           
+            # Append the reads and labels
+            data.append(reads)
+            labels.append(allele_vector)
+   
     return data, labels
 
 train_data, train_labels = load_learning_data('artifacts/train.txt')
