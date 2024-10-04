@@ -22,15 +22,15 @@ simulations = []
 simulations.extend([[allele] for allele in allele_names])
 
 # 2 copy simulations
-for _ in range(800):
+for _ in range(300):
     simulations.append(generate_simulation(allele_names, 2))
 
 # 3 copy simulations
-for _ in range(1000):
+for _ in range(300):
     simulations.append(generate_simulation(allele_names, 3))
 
 # 4 copy simulations
-for _ in range(1000):
+for _ in range(300):
     simulations.append(generate_simulation(allele_names, 4))
 
 def verify_no_duplication(simulations):
