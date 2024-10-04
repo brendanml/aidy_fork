@@ -47,7 +47,7 @@ if not is_jupyter:
                         type=int, default=args.coverage)
     parser.add_argument('-q', '--squeezed',
                         action='store_true',
-                        default=args.squeezed)
+                        default=True)
     parser.add_argument('-m', '--model',
                         choices=['cae_v1', 'cae_v2'],
                         default=args.model)
@@ -73,7 +73,11 @@ population_size = args.number_of_alleles
 model = Model(args.model, etl.squeezed_allele_db, args.coverage,
               etl.count_reads([random.choice(etl.allele_keys) for _ in range(population_size)]))
 #%%
-def load_test_bank(file_path):
+def load_learning_data(file_path):
+    '''
+    load train, validation, and test data from testbank file
+    for each data, it is a binary vector where 1 indicates the presences of alelle
+    '''
     allele_names = list(a.name for a in etl.gene.alleles.values())
     
     allele_to_index = {name: index for index, name in enumerate(allele_names)}
@@ -99,18 +103,14 @@ def load_test_bank(file_path):
             data.append(allele_vector)
             labels.append(alleles)
     
-    return np.array(data), labels, allele_to_index
+    return data, labels
+
+train_data, train_labels = load_learning_data('artifacts/train.txt')
+validation_data, validation_labels = load_learning_data('artifacts/validation.txt')
+test_data, test_labels = load_learning_data('artifacts/test.txt')
 
 
-def prepare_data(data):
-    return data.astype(np.float32)
-
-def split_data(data, train_size=0.7, val_size=0.15, test_size=0.15):
-    train_val_data, test_data = train_test_split(data, test_size=test_size, random_state=42)
-    
-    train_data, val_data = train_test_split(train_val_data, test_size=val_size/(train_size+val_size), random_state=42)
-    return train_data, val_data, test_data
-
+#%%
 def train_cae(model, train_data, val_data, epochs=100, batch_size=32):
     early_stopping = tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
     
