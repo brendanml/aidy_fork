@@ -70,7 +70,7 @@ class ETL:
             )
             # Align
             os.system(
-                "~/libs/bwa/bwa mem -t 4 temp/chr10.fa "
+                f"{os.getenv('BWA_PATH', 'bwa')} mem -t 4 temp/chr10.fa "
                 f"temp/sim/{self.gene.name}_{a_n}_1.fq temp/sim/{self.gene.name}_{a_n}_2.fq | "
                 f"{os.getenv('SAMTOOLS_PATH', 'samtools')} sort --write-index -o temp/sim/{self.gene.name}_{a_n}.bwa.bam##idx##temp/sim/{self.gene.name}_{a_n}.bwa.bai")
 

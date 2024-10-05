@@ -14,10 +14,10 @@ is_jupyter = "JPY_PARENT_PID" in os.environ
 #%%
 args = dotdict({
     "gene": 'cyp2c19',
-    "seed": 42,
+    "seed": 0,
     "verbose": True,
     "runs": 3,
-    "number_of_alleles": 3,
+    "number_of_alleles": 1,
     "coverage": 10,
     "squeezed": True,
     "model": 'cae_v1',
