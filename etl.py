@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 
 class ETL:
-    def __init__(self, gene_name, coverage, allele_count, no_cache):
+    def __init__(self, gene_name, coverage, allele_count, no_cache, include_minor_alleles):
         self.coverage = coverage
         self.allele_count = allele_count
         gene_path = aldy.common.script_path(f"aldy.resources.genes/{gene_name}.yml")
@@ -23,9 +23,17 @@ class ETL:
         
         # Allele dictionary: name -> [list_of_mutations]
         alleles = {}
+        minors = set()
         for ma_n, ma in self.gene.alleles.items():
-            # for mi_n, mi in ma.minors.items():
             alleles[ma_n] = list(ma.func_muts)
+            
+            if include_minor_alleles:
+                for _, mi in ma.minors.items():
+                    neutral_muts = list(mi.neutral_muts)
+                    for mut in neutral_muts:
+                        minors.add(mut.pos)
+                    alleles[ma_n].extend(neutral_muts)
+
         # Clean up duplicate alleles
         seen = set()
         ap = {}
@@ -56,6 +64,15 @@ class ETL:
             allele_vectors[an] = np.array(v)
         self.allele_vectors = allele_vectors
 
+        minors_mask = [0] * len(indices)
+        for m in muts:
+            ok = m in a  # We need to handle _ (no mutation) specially
+            for i, o in self.aldy2one(*m):
+                idx = indices[i, o if ok else '_']
+                minors_mask[idx] = int(i in minors)
+                minors_mask[idx + (-1 if ok else 1)] = int(i in minors)
+        self.minors_mask = minors_mask
+
         # Do simulations
         # Simulate allele sequences with ART and align them to the reference
         for a_n, a_muts in alleles.items():
@@ -83,6 +100,8 @@ class ETL:
         self.allele_keys = list(allele_vectors.keys())
         self.allele_db = np.array([allele_vectors[k] for k in self.allele_keys])
         self.squeezed_allele_db = np.array([self.squeeze(allele_vectors[k]) for k in self.allele_keys])
+        self.minors_mask = np.array(minors_mask)
+        self.squeezed_minors_mask = np.array(self.squeeze(minors_mask))
     
     def count_reads(self, alleles):
         reads = {}

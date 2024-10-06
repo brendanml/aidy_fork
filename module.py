@@ -10,11 +10,13 @@ from loss import get_loss
 
 class Module:
     def __init__(self, model_name, etl, squeezed, inner_act, final_act,
-                 epochs, loss_name, verbose):
+                 epochs, loss_name, minor_allele_weight, verbose):
         self.etl = etl
         self.coverage = etl.coverage
         self.squeezed = squeezed
         self.allele_db = etl.squeezed_allele_db if squeezed else etl.allele_db
+        self.minors_mask = etl.squeezed_minors_mask if squeezed else etl.minors_mask
+        self.minors_weights = 1 - self.minors_mask.astype(float) * (1 - minor_allele_weight)
         self.model_name = model_name
         self.inner_act = inner_act
         self.final_act = final_act
@@ -34,7 +36,7 @@ class Module:
                                  inner_act=self.inner_act, final_act=self.final_act)
             else:
                 raise ValueError("Invalid model name", self.model_name)
-            self.model.set_allele_array(self.allele_db)
+            self.model.set_non_trainables(self.allele_db, self.minors_weights)
         elif self.model_name == 'linear':
             self.model = Linear(*self.allele_db.shape, num_reads, self.inner_act, self.final_act)
             self.model.compile(optimizer='adam',
@@ -65,7 +67,7 @@ class Module:
                 allele_probs, reconstructed = self.model(input_reads)
                 loss, rec_loss, allele_loss, l1_reg = self.loss(
                     self.loss_name, input_reads, allele_probs,
-                    reconstructed, self.allele_db, self.coverage)
+                    reconstructed, self.allele_db, self.coverage, self.minors_weights)
             
             gradients = tape.gradient(loss, self.model.trainable_variables)
             
@@ -95,10 +97,17 @@ class Module:
         
         if self.verbose:
             np.set_printoptions(suppress=True)
-            print("Inferred Alleles prob:", probs)
-            print("Inferred Alleles sum:", inf_all_sum)
-            print("Expected Alleles sum:", exp_all_sum)
-            print("Error:", error)
+            print("Inferred all alleles prob:", probs)
+            print("Inferred all alleles sum:", inf_all_sum)
+            print("Expected all alleles sum:", exp_all_sum)
+            print("Error all alleles:", error)
+
+            majors_mask = (1 - self.minors_mask).astype(bool)
+            inf_major_sum = inf_all_sum[majors_mask]
+            exp_major_sum = exp_all_sum[majors_mask]
+            print("Inferred major alleles sum:", inf_major_sum)
+            print("Expected major alleles sum:", exp_major_sum)
+            print("Error major alleles:", (inf_major_sum != exp_major_sum).astype(int).sum())
 
         # Calculate accuracy metrics
         return error

@@ -29,6 +29,7 @@ class CAE(tf.keras.Model):
         self.decode_conv2 = tf.keras.layers.Conv2D(1, (3, 3), activation=final_act, padding='same')
         
         self.allele_array = None
+        self.minors_weights = None
         
     def encode(self, inputs):
         x = self.conv1(inputs)
@@ -49,5 +50,6 @@ class CAE(tf.keras.Model):
         reconstructed = self.decode(allele_probs)
         return allele_probs, reconstructed
 
-    def set_allele_array(self, allele_array):
+    def set_non_trainables(self, allele_array, minors_weights):
         self.allele_array = tf.constant(allele_array, dtype=tf.float32)
+        self.minors_weights = tf.constant(minors_weights, dtype=tf.float32)

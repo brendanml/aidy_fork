@@ -26,7 +26,7 @@ def aidy_loss_v1(inputs, allele_probs, reconstructed, allele_db, *args):
     return total_loss, reconstruction_loss, allele_loss, l1_reg
 
 
-def aidy_loss_v2(inputs, allele_probs, reconstructed, allele_db, exp_cov):
+def aidy_loss_v2(inputs, allele_probs, reconstructed, allele_db, exp_cov, *args):
     observed_snp_counts = tf.reduce_sum(inputs, axis=[1, 3])  # Sum across reads and channel
     reconstructed_snp_counts = tf.reduce_sum(reconstructed, axis=[1, 3])
     reconstruction_loss = tf.reduce_mean(tf.square(observed_snp_counts - reconstructed_snp_counts))
@@ -38,11 +38,23 @@ def aidy_loss_v2(inputs, allele_probs, reconstructed, allele_db, exp_cov):
     return total_loss, reconstruction_loss, allele_loss, l1_reg
 
 
-def aidy_loss_v3(reads, allele_probs, reconstructed, allele_db, coverage):
+def aidy_loss_v3(reads, allele_probs, reconstructed, allele_db, coverage, *args):
     reconstruction_loss = binary_crossentropy(reads, reconstructed)
     observed_snp_freq = tf.divide(tf.reduce_sum(reads, axis=[1, 3]), coverage)
     predicted_snp_freq = tf.matmul(allele_probs, allele_db)
-    allele_loss = mean_absolute_error(observed_snp_freq, predicted_snp_freq)  # Minor alleles should be addressed on top of this loss. Probably just mult by weighted vector.
+    allele_loss = mean_absolute_error(observed_snp_freq, predicted_snp_freq)
+    l1_reg = 0.01 * tf.reduce_sum(tf.abs(allele_probs))
+    total_loss = 0.1 * reconstruction_loss + allele_loss + l1_reg
+    return total_loss, reconstruction_loss, allele_loss, l1_reg
+
+
+def aidy_loss_v4(reads, allele_probs, reconstructed, allele_db, coverage, minors_weights):
+    reconstruction_loss = binary_crossentropy(reads, reconstructed)
+    observed_snp_freq = tf.divide(tf.reduce_sum(reads, axis=[1, 3]), coverage)
+    predicted_snp_freq = tf.matmul(allele_probs, allele_db)
+    weighted_observed_snp_freq = tf.multiply(observed_snp_freq, minors_weights)
+    weighted_predicted_snp_freq = tf.multiply(predicted_snp_freq, minors_weights)
+    allele_loss = mean_absolute_error(weighted_observed_snp_freq, weighted_predicted_snp_freq)
     l1_reg = 0.01 * tf.reduce_sum(tf.abs(allele_probs))
     total_loss = 0.1 * reconstruction_loss + allele_loss + l1_reg
     return total_loss, reconstruction_loss, allele_loss, l1_reg
@@ -55,4 +67,6 @@ def get_loss(loss_name, *args):
         return aidy_loss_v2(*args)
     if loss_name == "aidy_v3":
         return aidy_loss_v3(*args)
+    if loss_name == "aidy_v4":
+        return aidy_loss_v4(*args)
     raise ValueError("Invalid loss name:", loss_name)

@@ -16,17 +16,19 @@ args = dotdict({
     "gene": 'cyp2c19',
     "seed": 0,
     "verbose": True,
-    "runs": 10,
-    "number_of_alleles": 3,
+    "runs": 3,
+    "number_of_alleles": 5,
     "coverage": 30,
     "squeezed": True,
     "model": 'cae_v2',
     "epochs": 1001,
-    "loss": 'aidy_v3',
+    "loss": 'aidy_v4',
     "no_cache": False,
     "prune_zeros_reads": True,
     "inner_act": 'relu',
-    "final_act": 'sigmoid'
+    "final_act": 'sigmoid',
+    "minor_allele_weight": 0.01,
+    "include_minor_alleles": True
 })
 
 if not is_jupyter:
@@ -65,6 +67,11 @@ if not is_jupyter:
                         default=args.inner_act)
     parser.add_argument('--final-act',
                         default=args.final_act)
+    parser.add_argument('--minor-allele-weight',
+                        type=float, default=args.minor_allele_weight)
+    parser.add_argument('--include-minor-alleles',
+                        action='store_true',
+                        default=args.include_minor_alleles)
 
     args = parser.parse_args()
 
@@ -73,10 +80,12 @@ if args.seed:
     np.random.seed(args.seed)
     tf.random.set_seed(args.seed)
 
-etl = ETL(args.gene, args.coverage, args.number_of_alleles, args.no_cache)
+etl = ETL(args.gene, args.coverage, args.number_of_alleles,
+          args.no_cache, args.include_minor_alleles)
 module = Module(
     args.model, etl, args.squeezed, args.inner_act,
-    args.final_act, args.epochs, args.loss, args.verbose)
+    args.final_act, args.epochs, args.loss,
+    args.minor_allele_weight, args.verbose)
 
 #%%
 errors = []
