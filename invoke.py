@@ -16,14 +16,15 @@ args = dotdict({
     "gene": 'cyp2c19',
     "seed": 0,
     "verbose": True,
-    "runs": 3,
+    "runs": 10,
     "number_of_alleles": 3,
-    "coverage": 10,
+    "coverage": 30,
     "squeezed": True,
     "model": 'cae_v2',
     "epochs": 1001,
     "loss": 'aidy_v3',
-    "no_cache": False,
+    "no_cache": True,
+    "prune_zeros_reads": True,
     "inner_act": 'relu',
     "final_act": 'sigmoid'
 })
@@ -54,6 +55,9 @@ if not is_jupyter:
                         type=int, default=args.epochs)
     parser.add_argument('-l', '--loss',
                         default=args.loss)
+    parser.add_argument('--prune-zeros-reads',
+                        action='store_true',
+                        default=args.prune_zeros_reads)
     parser.add_argument('--no-cache',
                         action='store_true',
                         default=args.no_cache)
@@ -78,7 +82,11 @@ module = Module(
 errors = []
 for _ in range(args.runs):
     selected_alleles = etl.get_random_alleles()
-    reads = etl.sample(selected_alleles, squeezed=args.squeezed)
+    reads = etl.sample(selected_alleles, squeezed=args.squeezed, non_zeros_only=args.prune_zeros_reads)
+
+    if args.verbose:
+        print("Input reads shape:", reads.shape)
+
     expected_alleles = etl.filter_alleles(selected_alleles, squeezed=args.squeezed)
     errors.append(module.evaluate(reads, expected_alleles))
 

@@ -127,10 +127,16 @@ class ETL:
         
         return np.array([pair[0] for pair in data]), np.array([pair[1] for pair in data])
     
-    def sample(self, selected_alleles, squeezed):
+    def sample(self, selected_alleles, squeezed, non_zeros_only=True):
         reads = []
         for allele in selected_alleles:
-            reads.extend(self.get_sample(f"temp/sim/{self.gene.name}_{allele}.bwa.bam", self.gene, self.indices, squeezed).tolist())
+            allele_reads = self.get_sample(f"temp/sim/{self.gene.name}_{allele}.bwa.bam", self.gene, self.indices, squeezed).tolist()
+            
+            if not non_zeros_only:
+                reads.extend(allele_reads.tolist())
+                continue
+
+            reads.extend([row for row in allele_reads if (np.array(row) != 0).any()])
         
         return np.array(reads)
 
