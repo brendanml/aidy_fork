@@ -1,51 +1,70 @@
+import random
+
 import numpy as np
 import tensorflow as tf
 
 from models.cae import CAE
-from models.loss import get_loss
+from models.linear import Linear
+from loss import get_loss
 
 
-class Model:
-    def __init__(self, model_name, allele_db, coverage, num_reads):
-        self.coverage = coverage
-        self.allele_db = allele_db
-        self.approx_num_reads = num_reads
+class Module:
+    def __init__(self, model_name, etl, squeezed, inner_act, final_act,
+                 epochs, loss_name, verbose):
+        self.etl = etl
+        self.coverage = etl.coverage
+        self.squeezed = squeezed
+        self.allele_db = etl.squeezed_allele_db if squeezed else etl.allele_db
         self.model_name = model_name
-        
+        self.inner_act = inner_act
+        self.final_act = final_act
+        self.epochs = epochs
+        self.loss_name = loss_name
+        self.verbose = verbose
+
         self.reset_model()
     
-    def reset_model(self):
+    def reset_model(self, num_reads=0):
         if self.model_name.startswith('cae'):
             if self.model_name == 'cae_v1':
-                self.model = CAE(*self.allele_db.shape)
+                self.model = CAE(*self.allele_db.shape,
+                                 inner_act=self.inner_act, final_act=self.final_act)
             elif self.model_name == 'cae_v2':
-                self.model = CAE(*self.allele_db.shape, self.approx_num_reads)
+                self.model = CAE(*self.allele_db.shape, num_reads,
+                                 inner_act=self.inner_act, final_act=self.final_act)
             else:
                 raise ValueError("Invalid model name", self.model_name)
             self.model.set_allele_array(self.allele_db)
+        elif self.model_name == 'linear':
+            self.model = Linear(*self.allele_db.shape, num_reads, self.inner_act, self.final_act)
+            self.model.compile(optimizer='adam',
+                loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                metrics=['accuracy'])
+            
+            self.model.fit(*self.etl.sample_feature_labels(self.squeezed), epochs=500)
         else:
             raise ValueError("Invalid model name", self.model_name)
 
     def loss(self, loss_name, *args):
         return get_loss(loss_name, *args)
     
-    def unsupervised_run(self, reads, expected_alleles, epochs=500, loss_name='aidy_v1', verbose=False):
+    def unsupervised_run(self, reads, expected_alleles):
         # Convert reads to model input format (add batch and channel dimensions)
         input_reads = reads.reshape(1, -1, self.allele_db.shape[1], 1).astype(np.float32)
 
         # Initialize model (build)
-        self.reset_model()
+        self.reset_model(len(reads))
         self.model(input_reads)
 
         # Training loop
         optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
         clip_value = 1.0  # Gradient clipping threshold
 
-        for epoch in range(epochs):
+        for epoch in range(self.epochs):
             with tf.GradientTape() as tape:
                 allele_probs, reconstructed = self.model(input_reads)
                 loss, rec_loss, allele_loss, l1_reg = self.loss(
-                    loss_name, input_reads, allele_probs,
+                    self.loss_name, input_reads, allele_probs,
                     reconstructed, self.allele_db, self.coverage)
             
             gradients = tape.gradient(loss, self.model.trainable_variables)
@@ -55,7 +74,7 @@ class Model:
             
             optimizer.apply_gradients(zip(gradients, self.model.trainable_variables))
             
-            if verbose:
+            if self.verbose:
                 if epoch % 100 == 0:
                     print(f"Epoch {epoch}, Total Loss: {loss.numpy():.4f}, "
                         f"Rec Loss: {rec_loss.numpy():.4f}, Allele Loss: {allele_loss.numpy():.4f}, "
@@ -74,9 +93,11 @@ class Model:
         exp_all_sum = np.sum(expected_alleles, axis=0)
         error = (inf_all_sum != exp_all_sum).astype(int).sum()
         
-        if verbose:
-            print("Inferred Allele indices (sum):", inf_all_sum)
-            print("Expected Alleles indices (sum):", exp_all_sum)
+        if self.verbose:
+            np.set_printoptions(suppress=True)
+            print("Inferred Alleles prob:", probs)
+            print("Inferred Alleles sum:", inf_all_sum)
+            print("Expected Alleles sum:", exp_all_sum)
             print("Error:", error)
 
         # Calculate accuracy metrics
@@ -87,6 +108,6 @@ class Model:
             return True
         return False
     
-    def predict(self, *args, **kwargs):
+    def evaluate(self, reads, expected_alleles):
         if self.is_unsupervised():
-            return self.unsupervised_run(*args, **kwargs)
+            return self.unsupervised_run(reads, expected_alleles)

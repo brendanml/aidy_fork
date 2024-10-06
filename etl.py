@@ -1,13 +1,18 @@
+import os, random
+
 import numpy as np
-import os
 import pysam
 import aldy.gene
 import aldy.common
 
+from itertools import combinations
+from tqdm import tqdm
+
 
 class ETL:
-    def __init__(self, gene_name, coverage, no_cache):
+    def __init__(self, gene_name, coverage, allele_count, no_cache):
         self.coverage = coverage
+        self.allele_count = allele_count
         gene_path = aldy.common.script_path(f"aldy.resources.genes/{gene_name}.yml")
         self.gene = aldy.gene.Gene(gene_path, genome="hg38")
         os.system('mkdir -p temp/sim')
@@ -94,6 +99,33 @@ class ETL:
                     reads.setdefault(fragment, {})
         
         return len(reads)
+    
+    def get_random_alleles(self):
+        assert len(set(self.allele_keys)) >= self.allele_count, f"Cannot select {self.allele_count} distinct alleles"
+        
+        allele_set = set()
+        while len(allele_set) < self.allele_count:
+            allele_set.add(random.choice(self.allele_keys))
+        
+        return list(allele_set)
+    
+    def get_allele_vector(self, selected_alleles):
+        return np.array([(1 if key in selected_alleles else 0) for key in self.allele_keys])
+    
+    def sample_feature_labels(self, squeezed, multiplicity=3, shuffle=True):
+        features, labels = [], []
+        for allele_tuple in tqdm(combinations(self.allele_keys, self.allele_count), "Generating feature/labels"):
+            allele_vector = self.get_allele_vector(allele_tuple).tolist()
+            for _ in range(multiplicity):
+                features.append(self.sample(allele_tuple, squeezed).tolist())
+                labels.append(allele_vector)
+        
+        data = list(zip(features, labels))
+        
+        if shuffle:
+            random.shuffle(data)
+        
+        return np.array([pair[0] for pair in data]), np.array([pair[1] for pair in data])
     
     def sample(self, selected_alleles, squeezed):
         reads = []
