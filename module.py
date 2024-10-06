@@ -93,25 +93,40 @@ class Module:
 
         inf_all_sum = np.sum(infered_alleles, axis=0)
         exp_all_sum = np.sum(expected_alleles, axis=0)
-        error = (inf_all_sum != exp_all_sum).astype(int).sum()
+        error_all = (inf_all_sum != exp_all_sum).astype(int).sum()
+
+        majors_mask = (1 - self.minors_mask).astype(bool)
+        inf_major_sum = inf_all_sum[majors_mask]
+        exp_major_sum = exp_all_sum[majors_mask]
+        error_major = (inf_major_sum != exp_major_sum).astype(int).sum()
         
         if self.verbose:
             np.set_printoptions(suppress=True)
             print("Inferred all alleles prob:", probs)
-            print("Inferred all alleles sum:", inf_all_sum)
-            print("Expected all alleles sum:", exp_all_sum)
-            print("Error all alleles:", error)
 
-            majors_mask = (1 - self.minors_mask).astype(bool)
-            inf_major_sum = inf_all_sum[majors_mask]
-            exp_major_sum = exp_all_sum[majors_mask]
-            print("Inferred major alleles sum:", inf_major_sum)
+            print("\nInferred all alleles sum:", inf_all_sum)
+            print("Expected all alleles sum:", exp_all_sum)
+            print("Error all alleles:", error_all)
+
+            print("\nInferred major alleles sum:", inf_major_sum)
             print("Expected major alleles sum:", exp_major_sum)
-            print("Error major alleles:", (inf_major_sum != exp_major_sum).astype(int).sum())
+            print("Error major alleles:", error_major)
 
         # Calculate accuracy metrics
-        return error
+        return error_all, error_major 
     
+    def accuracy_from_errors(self, errors):
+        num_snps = len(self.minors_mask)
+        num_major_snps = num_snps - self.minors_mask.sum()
+
+        correct_calls = sum([(num_snps - err[0]) for err in errors])
+        correct_major_calls = sum([(num_major_snps - err[1]) for err in errors])
+
+        acc = correct_calls / (num_snps * len(errors))
+        major_acc = correct_major_calls / (num_major_snps * len(errors))
+
+        return acc, major_acc
+
     def is_unsupervised(self):
         if isinstance(self.model, CAE):
             return True

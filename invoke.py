@@ -17,14 +17,14 @@ args = dotdict({
     "seed": 0,
     "verbose": True,
     "runs": 3,
-    "number_of_alleles": 5,
-    "coverage": 30,
+    "number_of_alleles": 3,
+    "coverage": 50,
     "squeezed": True,
     "model": 'cae_v2',
     "epochs": 1001,
     "loss": 'aidy_v4',
     "no_cache": False,
-    "prune_zeros_reads": True,
+    "prune_null_reads": True,
     "inner_act": 'relu',
     "final_act": 'sigmoid',
     "minor_allele_weight": 0.01,
@@ -57,9 +57,9 @@ if not is_jupyter:
                         type=int, default=args.epochs)
     parser.add_argument('-l', '--loss',
                         default=args.loss)
-    parser.add_argument('--prune-zeros-reads',
+    parser.add_argument('--prune-null-reads',
                         action='store_true',
-                        default=args.prune_zeros_reads)
+                        default=args.prune_null_reads)
     parser.add_argument('--no-cache',
                         action='store_true',
                         default=args.no_cache)
@@ -91,7 +91,7 @@ module = Module(
 errors = []
 for _ in range(args.runs):
     selected_alleles = etl.get_random_alleles()
-    reads = etl.sample(selected_alleles, squeezed=args.squeezed, non_zeros_only=args.prune_zeros_reads)
+    reads = etl.sample(selected_alleles, squeezed=args.squeezed, non_zeros_only=args.prune_null_reads)
 
     if args.verbose:
         print("Input reads shape:", reads.shape)
@@ -101,5 +101,9 @@ for _ in range(args.runs):
 
 if args.verbose:
     print("Errors:", errors)
+    
+    all_acc, major_acc = module.accuracy_from_errors(errors)
+    print("All accuracy:", {all_acc})
+    print("Major accuracy:", {major_acc})
 
 # %%
