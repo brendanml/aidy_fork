@@ -23,7 +23,7 @@ args = dotdict({
     "model": 'cae_v2',
     "epochs": 1001,
     "loss": 'aidy_v3',
-    "no_cache": True,
+    "no_cache": False,
     "prune_zeros_reads": True,
     "inner_act": 'relu',
     "final_act": 'sigmoid'
