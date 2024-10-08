@@ -119,14 +119,17 @@ class ETL:
         
         return len(reads)
     
-    def get_random_alleles(self):
+    def get_random_alleles(self, unique=False):
         assert len(set(self.allele_keys)) >= self.allele_count, f"Cannot select {self.allele_count} distinct alleles"
         
-        allele_set = set()
-        while len(allele_set) < self.allele_count:
-            allele_set.add(random.choice(self.allele_keys))
+        if unique:
+            allele_set = set()
+            while len(allele_set) < self.allele_count:
+                allele_set.add(random.choice(self.allele_keys))
         
-        return list(allele_set)
+            return list(allele_set)
+        
+        return [random.choice(self.allele_keys) for _ in range(self.allele_count)]
     
     def get_allele_vector(self, selected_alleles):
         return np.array([(1 if key in selected_alleles else 0) for key in self.allele_keys])

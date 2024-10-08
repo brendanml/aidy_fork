@@ -26,17 +26,22 @@ class Module:
 
         self.reset_model()
     
-    def reset_model(self, num_reads=0):
+    def reset_model(self, num_reads=0, num_expected_alleles=None):
         if self.model_name.startswith('cae'):
-            if self.model_name == 'cae_v1':
-                self.model = CAE(*self.allele_db.shape,
-                                 inner_act=self.inner_act, final_act=self.final_act)
-            elif self.model_name == 'cae_v2':
+            if self.model_name == 'cae_allele_probs':
                 self.model = CAE(*self.allele_db.shape, num_reads,
-                                 inner_act=self.inner_act, final_act=self.final_act)
-            else:
-                raise ValueError("Invalid model name", self.model_name)
+                                inner_act=self.inner_act, final_act=self.final_act)
+            elif self.model_name == 'cae_allele_calls':
+                self.model = CAE(*self.allele_db.shape, num_reads,
+                                 inner_act=self.inner_act, final_act=self.final_act,
+                                 num_expected_alleles=num_expected_alleles)
+            elif self.model_name == 'cae_allele_counts':
+                self.model = CAE(*self.allele_db.shape, num_reads,
+                                 inner_act=self.inner_act, final_act=self.final_act,
+                                 num_expected_alleles=num_expected_alleles, via_counter=True)
             self.model.set_non_trainables(self.allele_db, self.minors_weights)
+            if self.model.counter_matrix is not None:
+                self.counter_matrix = self.model.counter_matrix.numpy()
         elif self.model_name == 'linear':
             self.model = Linear(*self.allele_db.shape, num_reads, self.inner_act, self.final_act)
             self.model.compile(optimizer='adam',
@@ -55,7 +60,7 @@ class Module:
         input_reads = reads.reshape(1, -1, self.allele_db.shape[1], 1).astype(np.float32)
 
         # Initialize model (build)
-        self.reset_model(len(reads))
+        self.reset_model(len(reads), len(expected_alleles))
         self.model(input_reads)
 
         # Training loop
@@ -67,7 +72,9 @@ class Module:
                 allele_probs, reconstructed = self.model(input_reads)
                 loss, rec_loss, allele_loss, l1_reg = self.loss(
                     self.loss_name, input_reads, allele_probs,
-                    reconstructed, self.allele_db, self.coverage, self.minors_weights)
+                    reconstructed, self.allele_db, self.coverage,
+                    self.minors_weights, len(expected_alleles),
+                    self.counter_matrix)
             
             gradients = tape.gradient(loss, self.model.trainable_variables)
             
@@ -80,16 +87,39 @@ class Module:
                 if epoch % 100 == 0:
                     print(f"Epoch {epoch}, Total Loss: {loss.numpy():.4f}, "
                         f"Rec Loss: {rec_loss.numpy():.4f}, Allele Loss: {allele_loss.numpy():.4f}, "
-                        f"L1 Reg: {l1_reg.numpy():.4f}")
+                        f"L1 Reg: {(l1_reg.numpy() if l1_reg is not None else 0.0):.4f}")
 
         # Final evaluation
-        allele_probs, reconstructed = self.model(input_reads)
-        probs = allele_probs[0].numpy()
+        if self.verbose:
+            np.set_printoptions(suppress=True)
 
-        infered_alleles = self.allele_db[
-            np.array(sorted(
-                zip(probs, range(len(probs))),
-                    reverse=True)[:len(expected_alleles)]).T[1].astype(int)]
+        if self.model_name == "cae_allele_counts":
+            allele_matrix = self.model(input_reads)[0][0].numpy().reshape((
+                len(expected_alleles) + 1, self.allele_db.shape[0]))
+            allele_probs = allele_matrix[0]
+            allele_counts = np.sum(allele_matrix[1:] * self.counter_matrix, axis=0)
+            infered_alleles = np.expand_dims(allele_probs * allele_counts, axis=0) @ self.allele_db
+        elif self.model_name == "cae_allele_calls":
+            infered_alleles = np.round(self.model(input_reads)[0][0].numpy().reshape((
+                len(expected_alleles), self.allele_db.shape[1])))
+        elif self.latent_dim == "cae_allele_probs":
+            probs = self.model(input_reads)[0][0].numpy()
+            if self.verbose:
+                print("Inferred all alleles probs:", probs)
+
+            infered_alleles = []
+            temp_probs = probs.copy()
+            while len(infered_alleles) < len(expected_alleles):
+                cp_num = round(temp_probs.max())
+                infered_alleles.append(self.allele_db[temp_probs.argmax()].tolist())
+                if cp_num > 1:
+                    for _ in range(cp_num - 1):
+                        infered_alleles.append(self.allele_db[temp_probs.argmax()].tolist())
+                temp_probs[temp_probs.argmax()] = 0.0
+            
+            infered_alleles = np.array(infered_alleles)
+        else:
+            raise ValueError(f"Invalid model name: {self.model_name}")
 
         inf_all_sum = np.sum(infered_alleles, axis=0)
         exp_all_sum = np.sum(expected_alleles, axis=0)
@@ -101,9 +131,6 @@ class Module:
         error_major = (inf_major_sum != exp_major_sum).astype(int).sum()
         
         if self.verbose:
-            np.set_printoptions(suppress=True)
-            print("Inferred all alleles prob:", probs)
-
             print("\nInferred all alleles sum:", inf_all_sum)
             print("Expected all alleles sum:", exp_all_sum)
             print("Error all alleles:", error_all)
