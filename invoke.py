@@ -4,12 +4,16 @@ import os
 import numpy as np
 import tensorflow as tf
 import argparse
+from shutil import which
+from pprint import pprint
 
 from etl import ETL
 from module import Module
 from util import dotdict
 
-is_jupyter = "JPY_PARENT_PID" in os.environ
+jupyter_found = "JPY_PARENT_PID" in os.environ
+bwa_found = which(os.getenv("BWA_PATH", "bwa")) is not None
+samtools_found = which(os.getenv("SAMTOOLS_PATH", "samtools")) is not None
 
 #%%
 args = dotdict({
@@ -18,11 +22,11 @@ args = dotdict({
     "verbose": True,
     "runs": 3,
     "number_of_alleles": 3,
-    "coverage": 50,
+    "coverage": 20,
     "squeezed": True,
-    "model": 'cae_v2',
+    "model": 'cae_allele_calls',
     "epochs": 1001,
-    "loss": 'aidy_v4',
+    "loss": 'aidy_v5',
     "no_cache": False,
     "prune_null_reads": True,
     "inner_act": 'relu',
@@ -31,7 +35,10 @@ args = dotdict({
     "include_minor_alleles": True
 })
 
-if not is_jupyter:
+if not jupyter_found:
+    assert bwa_found, f"{os.getenv('BWA_PATH', 'bwa')} command not found"
+    assert samtools_found, f"{os.getenv('SAMTOOLS_PATH', 'samtools')} command not found"
+
     parser = argparse.ArgumentParser(
         prog='Aidy runtime')
 
@@ -51,7 +58,7 @@ if not is_jupyter:
                         action='store_true',
                         default=args.squeezed)
     parser.add_argument('-m', '--model',
-                        choices=['cae_v1', 'cae_v2', 'linear'],
+                        choices=['cae_allele_probs', 'cae_allele_calls', 'cae_allele_counts'],
                         default=args.model)
     parser.add_argument('-e', '--epochs',
                         type=int, default=args.epochs)
@@ -88,22 +95,24 @@ module = Module(
     args.minor_allele_weight, args.verbose)
 
 #%%
-errors = []
+errors = {}
 for _ in range(args.runs):
     selected_alleles = etl.get_random_alleles()
     reads = etl.sample(selected_alleles, squeezed=args.squeezed, non_zeros_only=args.prune_null_reads)
 
     if args.verbose:
+        print("Selected alleles:", selected_alleles)
         print("Input reads shape:", reads.shape)
 
     expected_alleles = etl.filter_alleles(selected_alleles, squeezed=args.squeezed)
-    errors.append(module.evaluate(reads, expected_alleles))
+    errors[tuple(selected_alleles)] = module.evaluate(reads, expected_alleles)
 
 if args.verbose:
-    print("Errors:", errors)
+    print("Errors:")
+    pprint(errors)
     
-    all_acc, major_acc = module.accuracy_from_errors(errors)
-    print("All accuracy:", {all_acc})
-    print("Major accuracy:", {major_acc})
+    all_acc, major_acc = module.accuracy_from_errors(errors.values())
+    print("All accuracy:", all_acc)
+    print("Major accuracy:", major_acc)
 
 # %%
