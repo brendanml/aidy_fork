@@ -32,7 +32,8 @@ args = dotdict({
     "inner_act": 'relu',
     "final_act": 'sigmoid',
     "minor_allele_weight": 0.01,
-    "include_minor_alleles": True
+    "include_minor_alleles": True,
+    "unique_phases_only": False
 })
 
 if not jupyter_found:
@@ -79,6 +80,9 @@ if not jupyter_found:
     parser.add_argument('--include-minor-alleles',
                         action='store_true',
                         default=args.include_minor_alleles)
+    parser.add_argument('--unique_phases_only',
+                        action='store_true',
+                        default=args.unique_phases_only)
 
     args = parser.parse_args()
 
@@ -97,7 +101,7 @@ module = Module(
 #%%
 errors = {}
 for _ in range(args.runs):
-    selected_alleles = etl.get_random_alleles()
+    selected_alleles = etl.get_random_alleles(args.unique_phases_only)
     reads = etl.sample(selected_alleles, squeezed=args.squeezed, non_zeros_only=args.prune_null_reads)
 
     if args.verbose:

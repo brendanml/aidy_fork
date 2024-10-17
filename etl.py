@@ -23,16 +23,16 @@ class ETL:
         
         # Allele dictionary: name -> [list_of_mutations]
         alleles = {}
-        minors = set()
+        minors = {}
         for ma_n, ma in self.gene.alleles.items():
             alleles[ma_n] = list(ma.func_muts)
-            
+            minors[ma_n] = set()
+
             if include_minor_alleles:
-                for _, mi in ma.minors.items():
+                for mi_n, mi in ma.minors.items():
                     neutral_muts = list(mi.neutral_muts)
-                    for mut in neutral_muts:
-                        minors.add(mut.pos)
-                    alleles[ma_n].extend(neutral_muts)
+                    alleles[mi_n] = alleles[ma_n] + neutral_muts
+                    minors[mi_n] = set([mut.pos for mut in neutral_muts])
 
         # Clean up duplicate alleles
         seen = set()
@@ -64,14 +64,16 @@ class ETL:
             allele_vectors[an] = np.array(v)
         self.allele_vectors = allele_vectors
 
-        minors_mask = [0] * len(indices)
-        for m in muts:
-            ok = m in a  # We need to handle _ (no mutation) specially
-            for i, o in self.aldy2one(*m):
-                idx = indices[i, o if ok else '_']
-                minors_mask[idx] = int(i in minors)
-                minors_mask[idx + (-1 if ok else 1)] = int(i in minors)
-        self.minors_mask = minors_mask
+        allele_minors_masks = {}
+        for an, a in alleles.items():
+            allele_minors_masks[an] = [0] * len(indices)
+            for m in muts:
+                ok = m in a  # We need to handle _ (no mutation) specially
+                for i, o in self.aldy2one(*m):
+                    idx = indices[i, o if ok else '_']
+                    allele_minors_masks[an][idx] = int(i in minors[an])
+                    allele_minors_masks[an][idx + (-1 if ok else 1)] = int(i in minors[an])
+        self.allele_minors_masks = allele_minors_masks
 
         # Do simulations
         # Simulate allele sequences with ART and align them to the reference
@@ -98,10 +100,23 @@ class ETL:
 
         # This is database matrix (rows: alleles, columns: variants)
         self.allele_keys = list(allele_vectors.keys())
-        self.allele_db = np.array([allele_vectors[k] for k in self.allele_keys])
-        self.squeezed_allele_db = np.array([self.squeeze(allele_vectors[k]) for k in self.allele_keys])
-        self.minors_mask = np.array(minors_mask)
-        self.squeezed_minors_mask = np.array(self.squeeze(minors_mask))
+        
+        allele_db = []
+        squeezed_allele_db = []
+        minors_masks = []
+        squeezed_minors_masks = []
+        for k in self.allele_keys:
+            allele_db.append(allele_vectors[k])
+            squeezed_allele_db.append(self.squeeze(allele_vectors[k]))
+            minors_masks.append(allele_minors_masks[k])
+            squeezed_minors_masks.append(self.squeeze(allele_minors_masks[k]))
+        
+        self.allele_db = np.array(allele_db)
+        self.squeezed_allele_db = np.array(squeezed_allele_db)
+        self.minors_masks = np.array(minors_masks)
+        self.squeezed_minors_masks = np.array(squeezed_minors_masks)
+        self.minors_mask = np.logical_or.reduce(self.minors_masks, axis=0)
+        self.squeezed_minors_mask = np.logical_or.reduce(self.squeezed_minors_masks, axis=0)
     
     def count_reads(self, alleles):
         reads = {}
