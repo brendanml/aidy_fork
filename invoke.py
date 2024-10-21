@@ -18,22 +18,23 @@ samtools_found = which(os.getenv("SAMTOOLS_PATH", "samtools")) is not None
 #%%
 args = dotdict({
     "gene": 'cyp2c19',
-    "seed": 0,
+    "seed": 42,
     "verbose": True,
-    "runs": 3,
+    "runs": 10,
     "number_of_alleles": 3,
     "coverage": 20,
     "squeezed": True,
-    "model": 'cae_allele_calls',
+    "model": 'cae_allele_probs',
     "epochs": 1001,
-    "loss": 'aidy_v5',
+    "loss": 'aidy_v4',
     "no_cache": False,
     "prune_null_reads": True,
     "inner_act": 'relu',
     "final_act": 'sigmoid',
-    "minor_allele_weight": 0.01,
+    "minor_allele_weight": 0.07,
     "include_minor_alleles": True,
-    "unique_phases_only": False
+    "unique_phases_only": True,
+    "filter_allele_db": True
 })
 
 if not jupyter_found:
@@ -83,6 +84,9 @@ if not jupyter_found:
     parser.add_argument('--unique_phases_only',
                         action='store_true',
                         default=args.unique_phases_only)
+    parser.add_argument('--filter-allele-db',
+                        action='store_true',
+                        default=args.filter_allele_db)
 
     args = parser.parse_args()
 
@@ -109,7 +113,7 @@ for _ in range(args.runs):
         print("Input reads shape:", reads.shape)
 
     expected_alleles = etl.filter_alleles(selected_alleles, squeezed=args.squeezed)
-    errors[tuple(selected_alleles)] = module.evaluate(reads, expected_alleles)
+    errors[tuple(selected_alleles)] = module.evaluate(reads, expected_alleles, args.filter_allele_db)
 
 if args.verbose:
     print("Errors:")

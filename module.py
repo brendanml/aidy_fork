@@ -24,6 +24,7 @@ class Module:
         self.loss_name = loss_name
         self.verbose = verbose
 
+        self.counter_matrix = None
         self.reset_model()
     
     def reset_model(self, num_reads=0, num_expected_alleles=None):
@@ -102,7 +103,7 @@ class Module:
         elif self.model_name == "cae_allele_calls":
             infered_alleles = np.round(self.model(input_reads)[0][0].numpy().reshape((
                 len(expected_alleles), self.allele_db.shape[1])))
-        elif self.latent_dim == "cae_allele_probs":
+        elif self.model_name == "cae_allele_probs":
             probs = self.model(input_reads)[0][0].numpy()
             if self.verbose:
                 print("Inferred all alleles probs:", probs)
@@ -159,6 +160,17 @@ class Module:
             return True
         return False
     
-    def evaluate(self, reads, expected_alleles):
+    def evaluate(self, reads, expected_alleles, filter_db=False):
+        if filter_db:
+            filtered_db = self.allele_db[
+                np.any(
+                    np.logical_and(
+                        np.logical_xor(
+                            self.allele_db.astype(bool),
+                            np.sum(reads, axis=0) > 0),
+                        self.allele_db.astype(bool)),
+                    axis=1)]
+            self.model.set_non_trainables(filtered_db, self.minors_weights)
+        
         if self.is_unsupervised():
             return self.unsupervised_run(reads, expected_alleles)
