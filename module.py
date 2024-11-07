@@ -10,7 +10,7 @@ from loss import get_loss
 
 class Module:
     def __init__(self, model_name, etl, squeezed, inner_act, final_act,
-                 epochs, loss_name, minor_allele_weight, verbose):
+                 epochs, minor_allele_weight, verbose):
         self.etl = etl
         self.coverage = etl.coverage
         self.squeezed = squeezed
@@ -21,12 +21,25 @@ class Module:
         self.inner_act = inner_act
         self.final_act = final_act
         self.epochs = epochs
-        self.loss_name = loss_name
+        self.loss_name = self.get_loss_name(self.model_name)
         self.verbose = verbose
 
         self.counter_matrix = None
         self.reset_model()
     
+    @staticmethod
+    def get_loss_name(model_name):
+        if model_name == 'linear':
+            return 'aidy_v4'
+        if model_name == 'cae_allele_probs':
+            return 'aidy_v4'
+        if model_name == 'cae_allele_calls':
+            return 'aidy_v5'
+        if model_name == 'cae_allele_counts':
+            return 'aidy_v6'
+        
+        raise ValueError(f"Invalid model name: {model_name}")
+
     def reset_model(self, num_reads=0, num_expected_alleles=None):
         if self.model_name.startswith('cae'):
             if self.model_name == 'cae_allele_probs':
@@ -44,12 +57,18 @@ class Module:
             if self.model.counter_matrix is not None:
                 self.counter_matrix = self.model.counter_matrix.numpy()
         elif self.model_name == 'linear':
-            self.model = Linear(*self.allele_db.shape, num_reads, self.inner_act, self.final_act)
+            self.model = Linear(
+                num_alleles=self.allele_db.shape[0],
+                feature_size=data[0].shape[1],
+                inner_act=self.inner_act,
+                final_act=self.final_act)
+            
+            data = self.etl.sample_feature_labels(self.squeezed)
             self.model.compile(optimizer='adam',
-                loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                loss=tf.keras.losses.BinaryCrossentropy(),
                 metrics=['accuracy'])
             
-            self.model.fit(*self.etl.sample_feature_labels(self.squeezed), epochs=500)
+            self.model.fit(*data, epochs=500, verbose=True)
         else:
             raise ValueError("Invalid model name", self.model_name)
 
@@ -163,13 +182,13 @@ class Module:
     def evaluate(self, reads, expected_alleles, filter_db=False):
         if filter_db:
             filtered_db = self.allele_db[
-                np.any(
+                np.logical_not(np.any(
                     np.logical_and(
                         np.logical_xor(
                             self.allele_db.astype(bool),
                             np.sum(reads, axis=0) > 0),
                         self.allele_db.astype(bool)),
-                    axis=1)]
+                    axis=1))]
             self.model.set_non_trainables(filtered_db, self.minors_weights)
         
         if self.is_unsupervised():
