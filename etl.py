@@ -10,6 +10,8 @@ from tqdm import tqdm
 
 
 class ETL:
+    CACHE_PATH = 'cache'
+    
     def __init__(self, gene_name, coverage, allele_count, no_cache, include_minor_alleles):
         self.coverage = coverage
         self.allele_count = allele_count
@@ -149,20 +151,49 @@ class ETL:
     def get_allele_vector(self, selected_alleles):
         return np.array([(1 if key in selected_alleles else 0) for key in self.allele_keys])
     
-    def sample_feature_labels(self, squeezed, multiplicity=3, shuffle=True):
+    def get_allele_matrix(self, selected_alleles, squeezed, sorted):
+        allele_matrix = [self.allele_vectors[k] for k in selected_alleles]
+
+        if squeezed:
+            allele_matrix = [self.squeeze(row) for row in allele_matrix]
+        
+        if sorted:
+            allele_matrix.sort(key=lambda x: str(x), reverse=True)
+        
+        return np.array(allele_matrix)
+    
+    def sample_feature_labels(self, squeezed, multiplicity=1, shuffle=True, non_zeros_only=True, no_cache=False):
+        features_cache_path, labels_cache_path = self.get_cache_paths(squeezed, non_zeros_only)
+        
+        if os.path.exists(features_cache_path) and os.path.exists(features_cache_path) and not no_cache:
+            return np.fromfile(features_cache_path), np.fromfile(labels_cache_path)
+        
         features, labels = [], []
-        for allele_tuple in tqdm(combinations(self.allele_keys, self.allele_count), "Generating feature/labels"):
+        for allele_tuple in tqdm(list(combinations(self.allele_keys, self.allele_count)), "Generating feature/labels"):
             allele_vector = self.get_allele_vector(allele_tuple).tolist()
             for _ in range(multiplicity):
-                features.append(self.sample(allele_tuple, squeezed).tolist())
+                features.append(self.sample(allele_tuple, squeezed, non_zeros_only).flatten().tolist())
                 labels.append(allele_vector)
         
-        data = list(zip(features, labels))
+        max_len = max([len(row) for row in features])
+
+        # Pad features
+        np_features = np.zeros((len(features), max_len))
+        for i in range(len(features)):
+            for j in range(len(features[i])):
+                np_features[i, j] = features[i][j]
+        features = np_features.tolist()
         
+        data = list(zip(features, labels))
         if shuffle:
             random.shuffle(data)
         
-        return np.array([pair[0] for pair in data]), np.array([pair[1] for pair in data])
+        features, labels = np.array([pair[0] for pair in data]), np.array([pair[1] for pair in data])
+
+        np.savetxt(self.FEATURES_CACHE_PATH, features)
+        np.savetxt(self.LABELS_CACHE_PATH, labels)
+        
+        return features, labels
     
     def sample(self, selected_alleles, squeezed, non_zeros_only=True):
         reads = []
