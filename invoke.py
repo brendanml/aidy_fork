@@ -18,21 +18,22 @@ samtools_found = which(os.getenv("SAMTOOLS_PATH", "samtools")) is not None
 #%%
 args = dotdict({
     "gene": 'cyp2c19',
-    "seed": 0,
+    "seed": 42,
     "verbose": True,
-    "runs": 3,
-    "number_of_alleles": 3,
+    "runs": 10,
+    "number_of_alleles": 2,
     "coverage": 20,
     "squeezed": True,
-    "model": 'cae_allele_calls',
-    "epochs": 1001,
-    "loss": 'aidy_v5',
+    "model": 'cae_allele_probs',
+    "epochs": 333,
     "no_cache": False,
     "prune_null_reads": True,
     "inner_act": 'relu',
-    "final_act": 'sigmoid',
-    "minor_allele_weight": 0.01,
-    "include_minor_alleles": True
+    "final_act": 'relu',
+    "minor_allele_weight": 0.07,
+    "include_minor_alleles": False,
+    "unique_phases_only": True,
+    "filter_allele_db": False
 })
 
 if not jupyter_found:
@@ -62,8 +63,6 @@ if not jupyter_found:
                         default=args.model)
     parser.add_argument('-e', '--epochs',
                         type=int, default=args.epochs)
-    parser.add_argument('-l', '--loss',
-                        default=args.loss)
     parser.add_argument('--prune-null-reads',
                         action='store_true',
                         default=args.prune_null_reads)
@@ -79,6 +78,12 @@ if not jupyter_found:
     parser.add_argument('--include-minor-alleles',
                         action='store_true',
                         default=args.include_minor_alleles)
+    parser.add_argument('--unique_phases_only',
+                        action='store_true',
+                        default=args.unique_phases_only)
+    parser.add_argument('--filter-allele-db',
+                        action='store_true',
+                        default=args.filter_allele_db)
 
     args = parser.parse_args()
 
@@ -91,13 +96,13 @@ etl = ETL(args.gene, args.coverage, args.number_of_alleles,
           args.no_cache, args.include_minor_alleles)
 module = Module(
     args.model, etl, args.squeezed, args.inner_act,
-    args.final_act, args.epochs, args.loss,
+    args.final_act, args.epochs,
     args.minor_allele_weight, args.verbose)
 
 #%%
 errors = {}
 for _ in range(args.runs):
-    selected_alleles = etl.get_random_alleles()
+    selected_alleles = etl.get_random_alleles(args.unique_phases_only)
     reads = etl.sample(selected_alleles, squeezed=args.squeezed, non_zeros_only=args.prune_null_reads)
 
     if args.verbose:
@@ -105,7 +110,7 @@ for _ in range(args.runs):
         print("Input reads shape:", reads.shape)
 
     expected_alleles = etl.filter_alleles(selected_alleles, squeezed=args.squeezed)
-    errors[tuple(selected_alleles)] = module.evaluate(reads, expected_alleles)
+    errors[tuple(selected_alleles)] = module.evaluate(reads, expected_alleles, args.filter_allele_db)
 
 if args.verbose:
     print("Errors:")
